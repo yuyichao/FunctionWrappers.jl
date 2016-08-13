@@ -40,3 +40,10 @@ typealias F64F64Func FunctionWrapper{Float64,Tuple{Float64}}
     @test f1 === f2
     @test f1 === f3
 end
+
+typealias NumberAnyFunc FunctionWrapper{Number,Tuple{Any}}
+
+@testset "Abstract Return" begin
+    @test NumberAnyFunc(sin)(1) === sin(1)
+    @test NumberAnyFunc(identity)(1) === 1
+end
