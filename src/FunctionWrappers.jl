@@ -41,10 +41,10 @@ immutable FunctionWrapper{Ret,Args<:Tuple}
                       get_cfunc_argtype(objT, Args)),
             Base.unsafe_convert(Ref{objT}, objref), objref)
     end
+    FunctionWrapper(obj::FunctionWrapper{Ret,Args}) = obj
 end
 
 Base.convert{T<:FunctionWrapper}(::Type{T}, obj) = T(obj)
-Base.convert{T<:FunctionWrapper}(::Type{T}, obj::T) = obj
 
 @generated function do_ccall{Ret,Args}(f::FunctionWrapper{Ret,Args}, args::Args)
     # Has to be generated since the arguments type of `ccall` does not allow
