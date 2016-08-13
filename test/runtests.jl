@@ -1,5 +1,6 @@
 #!/usr/bin/julia -f
 
+import FunctionWrappers
 import FunctionWrappers: FunctionWrapper
 using Base.Test
 
@@ -46,4 +47,8 @@ typealias NumberAnyFunc FunctionWrapper{Number,Tuple{Any}}
 @testset "Abstract Return" begin
     @test NumberAnyFunc(sin)(1) === sin(1)
     @test NumberAnyFunc(identity)(1) === 1
+end
+
+@testset "Precompile" begin
+    @test FunctionWrappers.identityAnyAny(1) === 1
 end

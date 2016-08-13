@@ -15,7 +15,7 @@ module FunctionWrappers
 end
 
 # Convert return type and generates cfunction signatures
-Base.@pure map_argtype(T) = isbits(T) ? T : Ref{T}
+Base.@pure map_argtype(T) = (isbits(T) || T === Any) ? T : Ref{T}
 Base.@pure get_cfunc_argtype(Obj, Args) =
     Tuple{Ref{Obj}, (map_argtype(Arg) for Arg in Args.parameters)...}
 
@@ -31,20 +31,31 @@ for nargs in 0:128
         f($((Symbol("arg", i) for i in 1:nargs)...))
 end
 
-immutable FunctionWrapper{Ret,Args<:Tuple}
+type FunctionWrapper{Ret,Args<:Tuple}
     ptr::Ptr{Void}
     objptr::Ptr{Void}
     obj
+    objT
     function FunctionWrapper{objT}(obj::objT)
         objref = Base.cconvert(Ref{objT}, obj)
         new(cfunction(CallWrapper{Ret}(), map_argtype(Ret),
                       get_cfunc_argtype(objT, Args)),
-            Base.unsafe_convert(Ref{objT}, objref), objref)
+            Base.unsafe_convert(Ref{objT}, objref), objref, objT)
     end
     FunctionWrapper(obj::FunctionWrapper{Ret,Args}) = obj
 end
 
 Base.convert{T<:FunctionWrapper}(::Type{T}, obj) = T(obj)
+
+@noinline function reinit_wrapper{Ret,Args}(f::FunctionWrapper{Ret,Args})
+    objref = f.obj
+    objT = f.objT
+    ptr = cfunction(CallWrapper{Ret}(), map_argtype(Ret),
+                    get_cfunc_argtype(objT, Args))
+    f.ptr = ptr
+    f.objptr = Base.unsafe_convert(Ref{objT}, objref)
+    return ptr
+end
 
 @generated function do_ccall{Ret,Args}(f::FunctionWrapper{Ret,Args}, args::Args)
     # Has to be generated since the arguments type of `ccall` does not allow
@@ -52,6 +63,10 @@ Base.convert{T<:FunctionWrapper}(::Type{T}, obj) = T(obj)
     quote
         $(Expr(:meta, :inline))
         ptr = f.ptr
+        if ptr == C_NULL
+            # For precompile support
+            ptr = reinit_wrapper(f)
+        end
         assume(ptr != C_NULL)
         objptr = f.objptr
         ccall(ptr, $(map_argtype(Ret)),
@@ -61,5 +76,8 @@ Base.convert{T<:FunctionWrapper}(::Type{T}, obj) = T(obj)
 end
 
 @inline (f::FunctionWrapper)(args...) = do_ccall(f, args)
+
+# Testing only
+const identityAnyAny = FunctionWrapper{Any,Tuple{Any}}(identity)
 
 end
