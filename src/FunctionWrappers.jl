@@ -53,7 +53,7 @@ Base.convert{T<:FunctionWrapper}(::Type{T}, obj::T) = obj
         $(Expr(:meta, :inline))
         ptr = f.ptr
         assume(ptr != C_NULL)
-        objptr = f.ptr
+        objptr = f.objptr
         ccall(ptr, $(map_argtype(Ret)),
               (Ptr{Void}, $((map_argtype(Arg) for Arg in Args.parameters)...)),
               objptr, $((:(args[$i]) for i in 1:length(Args.parameters))...))
