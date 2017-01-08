@@ -52,3 +52,11 @@ end
 @testset "Precompile" begin
     @test FunctionWrappers.identityAnyAny(1) === 1
 end
+
+@testset "Void" begin
+    identityVoidVoid = FunctionWrapper{Void,Tuple{Void}}(identity)
+    @test identityVoidVoid(nothing) === nothing
+    f1 = (a, b)->b
+    fIntVoidInt = FunctionWrapper{Int,Tuple{Void,Int}}(f1)
+    @test fIntVoidInt(nothing, 1) === 1
+end

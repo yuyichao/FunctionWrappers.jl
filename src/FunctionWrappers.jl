@@ -16,13 +16,29 @@ end
 
 is_singleton(T::ANY) = isdefined(T, :instance)
 
+immutable SingletonHack
+end
+Base.cconvert(::Type{Ptr{SingletonHack}}, v) = v
+Base.unsafe_convert(::Type{Ptr{SingletonHack}}, v) =
+    Ptr{SingletonHack}(pointer_from_objref(v))
+
 # Convert return type and generates cfunction signatures
 Base.@pure map_rettype(T) =
     (isbits(T) || T === Any || is_singleton(T)) ? T : Ref{T}
-Base.@pure map_argtype(T) =
-    ((isbits(T) || T === Any) && !is_singleton(T)) ? T : Ref{T}
+Base.@pure function map_cfunc_argtype(T)
+    if is_singleton(T)
+        return Ref{T}
+    end
+    return (isbits(T) || T === Any) ? T : Ref{T}
+end
+Base.@pure function map_argtype(T)
+    if is_singleton(T)
+        return Ptr{SingletonHack}
+    end
+    return (isbits(T) || T === Any) ? T : Ref{T}
+end
 Base.@pure get_cfunc_argtype(Obj, Args) =
-    Tuple{Ref{Obj}, (map_argtype(Arg) for Arg in Args.parameters)...}
+    Tuple{Ref{Obj}, (map_cfunc_argtype(Arg) for Arg in Args.parameters)...}
 
 # Call wrapper since `cfunction` does not support non-function
 # or closures
