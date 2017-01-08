@@ -14,8 +14,13 @@ module FunctionWrappers
                    """), Void, Tuple{Bool}, v)
 end
 
+is_singleton(T::ANY) = isdefined(T, :instance)
+
 # Convert return type and generates cfunction signatures
-Base.@pure map_argtype(T) = (isbits(T) || T === Any) ? T : Ref{T}
+Base.@pure map_rettype(T) =
+    (isbits(T) || T === Any || is_singleton(T)) ? T : Ref{T}
+Base.@pure map_argtype(T) =
+    ((isbits(T) || T === Any) && !is_singleton(T)) ? T : Ref{T}
 Base.@pure get_cfunc_argtype(Obj, Args) =
     Tuple{Ref{Obj}, (map_argtype(Arg) for Arg in Args.parameters)...}
 
@@ -38,7 +43,7 @@ type FunctionWrapper{Ret,Args<:Tuple}
     objT
     function FunctionWrapper{objT}(obj::objT)
         objref = Base.cconvert(Ref{objT}, obj)
-        new(cfunction(CallWrapper{Ret}(), map_argtype(Ret),
+        new(cfunction(CallWrapper{Ret}(), map_rettype(Ret),
                       get_cfunc_argtype(objT, Args)),
             Base.unsafe_convert(Ref{objT}, objref), objref, objT)
     end
@@ -50,7 +55,7 @@ Base.convert{T<:FunctionWrapper}(::Type{T}, obj) = T(obj)
 @noinline function reinit_wrapper{Ret,Args}(f::FunctionWrapper{Ret,Args})
     objref = f.obj
     objT = f.objT
-    ptr = cfunction(CallWrapper{Ret}(), map_argtype(Ret),
+    ptr = cfunction(CallWrapper{Ret}(), map_rettype(Ret),
                     get_cfunc_argtype(objT, Args))
     f.ptr = ptr
     f.objptr = Base.unsafe_convert(Ref{objT}, objref)
@@ -69,7 +74,7 @@ end
         end
         assume(ptr != C_NULL)
         objptr = f.objptr
-        ccall(ptr, $(map_argtype(Ret)),
+        ccall(ptr, $(map_rettype(Ret)),
               (Ptr{Void}, $((map_argtype(Arg) for Arg in Args.parameters)...)),
               objptr, $((:(args[$i]) for i in 1:length(Args.parameters))...))
     end
