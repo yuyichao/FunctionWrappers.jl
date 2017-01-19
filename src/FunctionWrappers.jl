@@ -61,6 +61,7 @@ type FunctionWrapper{Ret,Args<:Tuple}
 end
 
 Base.convert{T<:FunctionWrapper}(::Type{T}, obj) = T(obj)
+Base.convert{T<:FunctionWrapper}(::Type{T}, obj::T) = obj
 
 @noinline function reinit_wrapper{Ret,Args}(f::FunctionWrapper{Ret,Args})
     objref = f.obj
