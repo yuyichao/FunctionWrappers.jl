@@ -51,13 +51,13 @@ type FunctionWrapper{Ret,Args<:Tuple}
     objptr::Ptr{Void}
     obj
     objT
-    function FunctionWrapper{objT}(obj::objT)
+    function (::Type{FunctionWrapper{Ret,Args}}){Ret,Args,objT}(obj::objT)
         objref = Base.cconvert(Ref{objT}, obj)
-        new(cfunction(CallWrapper{Ret}(), map_rettype(Ret),
-                      get_cfunc_argtype(objT, Args)),
-            Base.unsafe_convert(Ref{objT}, objref), objref, objT)
+        new{Ret,Args}(cfunction(CallWrapper{Ret}(), map_rettype(Ret),
+                                get_cfunc_argtype(objT, Args)),
+                      Base.unsafe_convert(Ref{objT}, objref), objref, objT)
     end
-    FunctionWrapper(obj::FunctionWrapper{Ret,Args}) = obj
+    (::Type{FunctionWrapper{Ret,Args}}){Ret,Args}(obj::FunctionWrapper{Ret,Args}) = obj
 end
 
 Base.convert{T<:FunctionWrapper}(::Type{T}, obj) = T(obj)
