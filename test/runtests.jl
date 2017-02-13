@@ -20,7 +20,7 @@ gen_closure(x) = y->x + y
     @test @inferred(f3(1)) === 3.0
 end
 
-typealias F64AnyFunc FunctionWrapper{Float64,Tuple{Any}}
+const F64AnyFunc = FunctionWrapper{Float64,Tuple{Any}}
 
 @testset "Any input" begin
     f1 = @inferred F64AnyFunc(identity)
@@ -32,7 +32,7 @@ typealias F64AnyFunc FunctionWrapper{Float64,Tuple{Any}}
     @test @inferred(f2(1)) === 3.0
 end
 
-typealias F64F64Func FunctionWrapper{Float64,Tuple{Float64}}
+const F64F64Func = FunctionWrapper{Float64,Tuple{Float64}}
 
 @testset "Convert" begin
     f1 = @inferred F64F64Func(sin)
@@ -42,7 +42,7 @@ typealias F64F64Func FunctionWrapper{Float64,Tuple{Float64}}
     @test f1 === f3
 end
 
-typealias NumberAnyFunc FunctionWrapper{Number,Tuple{Any}}
+const NumberAnyFunc = FunctionWrapper{Number,Tuple{Any}}
 
 @testset "Abstract Return" begin
     @test NumberAnyFunc(sin)(1) === sin(1)
