@@ -36,7 +36,11 @@ Base.@pure get_cfunc_argtype(Obj, Args) =
 
 # Call wrapper since `cfunction` does not support non-function
 # or closures
-immutable CallWrapper{Ret} <: Function
+if VERSION >= v"0.6.0"
+    # Can in princeple be lower but 0.6 doesn't warn on this so it doesn't matter
+    include_string("struct CallWrapper{Ret} <: Function end")
+else
+    include_string("immutable CallWrapper{Ret} <: Function end")
 end
 (::CallWrapper{Ret}){Ret}(f, args...)::Ret = f(args...)
 
@@ -46,18 +50,26 @@ for nargs in 0:128
         f($((Symbol("arg", i) for i in 1:nargs)...))
 end
 
-type FunctionWrapper{Ret,Args<:Tuple}
-    ptr::Ptr{Void}
-    objptr::Ptr{Void}
-    obj
-    objT
-    function (::Type{FunctionWrapper{Ret,Args}}){Ret,Args,objT}(obj::objT)
-        objref = Base.cconvert(Ref{objT}, obj)
-        new{Ret,Args}(cfunction(CallWrapper{Ret}(), map_rettype(Ret),
-                                get_cfunc_argtype(objT, Args)),
-                      Base.unsafe_convert(Ref{objT}, objref), objref, objT)
+let ex = if VERSION >= v"0.6.0"
+    # Can in princeple be lower but 0.6 doesn't warn on this so it doesn't matter
+    parse("mutable struct FunctionWrapper{Ret,Args<:Tuple} end")
+else
+    parse("type FunctionWrapper{Ret,Args<:Tuple} end")
+end
+    ex.args[3] = quote
+        ptr::Ptr{Void}
+        objptr::Ptr{Void}
+        obj
+        objT
+        function (::Type{FunctionWrapper{Ret,Args}}){Ret,Args,objT}(obj::objT)
+            objref = Base.cconvert(Ref{objT}, obj)
+            new{Ret,Args}(cfunction(CallWrapper{Ret}(), map_rettype(Ret),
+                                    get_cfunc_argtype(objT, Args)),
+                          Base.unsafe_convert(Ref{objT}, objref), objref, objT)
+        end
+        (::Type{FunctionWrapper{Ret,Args}}){Ret,Args}(obj::FunctionWrapper{Ret,Args}) = obj
     end
-    (::Type{FunctionWrapper{Ret,Args}}){Ret,Args}(obj::FunctionWrapper{Ret,Args}) = obj
+    eval(ex)
 end
 
 Base.convert{T<:FunctionWrapper}(::Type{T}, obj) = T(obj)
