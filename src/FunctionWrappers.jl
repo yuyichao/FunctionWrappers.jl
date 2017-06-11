@@ -38,7 +38,7 @@ Base.@pure get_cfunc_argtype(Obj, Args) =
 # or closures
 if VERSION >= v"0.6.0"
     # Can in princeple be lower but 0.6 doesn't warn on this so it doesn't matter
-    include_string("struct CallWrapper{Ret} <: Function end")
+    eval(parse("struct CallWrapper{Ret} <: Function end"))
 else
     include_string("immutable CallWrapper{Ret} <: Function end")
 end
