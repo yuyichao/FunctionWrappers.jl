@@ -6,9 +6,9 @@ using Base.Test
 
 if VERSION >= v"0.6.0"
     # Can in princeple be lower but 0.6 doesn't warn on this so it doesn't matter
-    include_string("struct CallbackF64 f::FunctionWrapper{Float64,Tuple{Int}} end")
+    eval(parse("struct CallbackF64 f::FunctionWrapper{Float64,Tuple{Int}} end"))
 else
-    include_string("immutable CallbackF64 f::FunctionWrapper{Float64,Tuple{Int}} end")
+    eval(parse("immutable CallbackF64 f::FunctionWrapper{Float64,Tuple{Int}} end"))
 end
 (cb::CallbackF64)(v) = cb.f(v)
 gen_closure(x) = y->x + y

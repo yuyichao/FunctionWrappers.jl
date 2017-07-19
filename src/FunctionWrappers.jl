@@ -14,7 +14,11 @@ module FunctionWrappers
                    """), Void, Tuple{Bool}, v)
 end
 
-is_singleton(T::ANY) = isdefined(T, :instance)
+@static if isdefined(Base, Symbol("@nospecialize"))
+    is_singleton(@nospecialize(T)) = isdefined(T, :instance)
+else
+    is_singleton(T::ANY) = isdefined(T, :instance)
+end
 
 # Convert return type and generates cfunction signatures
 Base.@pure map_rettype(T) =
