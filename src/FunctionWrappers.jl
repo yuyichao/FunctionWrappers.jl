@@ -34,16 +34,11 @@ end
 Base.@pure get_cfunc_argtype(Obj, Args) =
     Tuple{Ref{Obj}, (map_cfunc_argtype(Arg) for Arg in Args.parameters)...}
 
-# Call wrapper since `cfunction` does not support non-function
-# or closures
-struct CallWrapper{Ret} <: Function end
-(::CallWrapper{Ret})(f, args...) where {Ret} = convert(Ret, f(args...))
-
-# Specialized wrapper for
-for nargs in 0:128
-    @eval function (::CallWrapper{Ret})(f, $((Symbol("arg", i) for i in 1:nargs)...)) where Ret
-        convert(Ret, f($((Symbol("arg", i) for i in 1:nargs)...)))
-    end
+@generated function make_cfunction(obj::objT, ::Type{Ret}, ::Type{Args}) where {objT,Ret,Args}
+    :(@cfunction(
+        $(Expr(:$, obj)),
+        map_rettype(Ret),
+        (Ref{objT}, $([:(map_cfunc_argtype($Arg)) for Arg in Args.parameters]...))))
 end
 
 mutable struct FunctionWrapper{Ret,Args<:Tuple}
@@ -51,18 +46,13 @@ mutable struct FunctionWrapper{Ret,Args<:Tuple}
     objptr::Ptr{Cvoid}
     obj
     objT
-
     function FunctionWrapper{Ret,Args}(obj::objT) where {Ret,Args,objT}
         objref = Base.cconvert(Ref{objT}, obj)
-        # ptr = cfunction(
-        #     CallWrapper{Ret}(), map_rettype(Ret),
-        #     get_cfunc_argtype(objT, Args))
-        # FIXME: use @cfunction (problem: it expects a literal tuple for the argument types)
-        ptr = ccall(:jl_function_ptr, Ptr{Cvoid}, (Any, Any, Any), CallWrapper{Ret}(), map_rettype(Ret), get_cfunc_argtype(objT, Args))
+        ptr = make_cfunction(obj, Ret, Args)
         new{Ret,Args}(ptr, Base.unsafe_convert(Ref{objT}, objref), objref, objT)
     end
 
-    FunctionWrapper{Ret,Args}(obj::FunctionWrapper{Ret,Args}) where {Ret, Args} = obj
+    FunctionWrapper{Ret,Args}(obj::FunctionWrapper{Ret,Args}) where {Ret,Args} = obj
 end
 
 Base.convert(::Type{T}, obj) where {T<:FunctionWrapper} = T(obj)
@@ -71,10 +61,7 @@ Base.convert(::Type{T}, obj::T) where {T<:FunctionWrapper} = obj
 @noinline function reinit_wrapper(f::FunctionWrapper{Ret,Args}) where {Ret,Args}
     objref = f.obj
     objT = f.objT
-    # ptr = cfunction(CallWrapper{Ret}(), map_rettype(Ret),
-    #                 get_cfunc_argtype(objT, Args))
-    # FIXME: use @cfunction (problem: it expects a literal tuple for the argument types)
-    ptr = ccall(:jl_function_ptr, Ptr{Cvoid}, (Any, Any, Any), CallWrapper{Ret}(), map_rettype(Ret), get_cfunc_argtype(objT, Args))
+    ptr = make_cfunction(obj, Ret, Args)
     f.ptr = ptr
     f.objptr = Base.unsafe_convert(Ref{objT}, objref)
     return ptr
