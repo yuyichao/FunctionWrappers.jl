@@ -4,11 +4,9 @@ __precompile__(true)
 
 module FunctionWrappers
 
-using Base: llvmcall
-
 # Used to bypass NULL check
 @inline function assume(v::Bool)
-    llvmcall(("declare void @llvm.assume(i1)",
+    Base.llvmcall(("declare void @llvm.assume(i1)",
                    """
                    %v = trunc i8 %0 to i1
                    call void @llvm.assume(i1 %v)
