@@ -2,15 +2,13 @@
 
 import FunctionWrappers
 import FunctionWrappers: FunctionWrapper
-using Base.Test
+using Test
 
-if VERSION >= v"0.6.0"
-    # Can in princeple be lower but 0.6 doesn't warn on this so it doesn't matter
-    eval(parse("struct CallbackF64 f::FunctionWrapper{Float64,Tuple{Int}} end"))
-else
-    eval(parse("immutable CallbackF64 f::FunctionWrapper{Float64,Tuple{Int}} end"))
+struct CallbackF64
+    f::FunctionWrapper{Float64,Tuple{Int}}
 end
 (cb::CallbackF64)(v) = cb.f(v)
+
 gen_closure(x) = y->x + y
 
 @testset "As field" begin
@@ -56,10 +54,10 @@ end
     @test FunctionWrappers.identityAnyAny(1) === 1
 end
 
-@testset "Void" begin
-    identityVoidVoid = FunctionWrapper{Void,Tuple{Void}}(identity)
-    @test identityVoidVoid(nothing) === nothing
+@testset "Nothing" begin
+    identityNothingNothing = FunctionWrapper{Nothing,Tuple{Nothing}}(identity)
+    @test identityNothingNothing(nothing) === nothing
     f1 = (a, b)->b
-    fIntVoidInt = FunctionWrapper{Int,Tuple{Void,Int}}(f1)
-    @test fIntVoidInt(nothing, 1) === 1
+    fIntNothingInt = FunctionWrapper{Int,Tuple{Nothing,Int}}(f1)
+    @test fIntNothingInt(nothing, 1) === 1
 end

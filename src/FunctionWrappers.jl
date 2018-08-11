@@ -11,89 +11,87 @@ module FunctionWrappers
                    %v = trunc i8 %0 to i1
                    call void @llvm.assume(i1 %v)
                    ret void
-                   """), Void, Tuple{Bool}, v)
+                   """), Cvoid, Tuple{Bool}, v)
 end
 
-@static if isdefined(Base, Symbol("@nospecialize"))
-    is_singleton(@nospecialize(T)) = isdefined(T, :instance)
-else
-    is_singleton(T::ANY) = isdefined(T, :instance)
-end
+is_singleton(@nospecialize(T)) = isdefined(T, :instance)
 
 # Convert return type and generates cfunction signatures
 Base.@pure map_rettype(T) =
-    (isbits(T) || T === Any || is_singleton(T)) ? T : Ref{T}
+    (isbitstype(T) || T === Any || is_singleton(T)) ? T : Ref{T}
 Base.@pure function map_cfunc_argtype(T)
     if is_singleton(T)
         return Ref{T}
     end
-    return (isbits(T) || T === Any) ? T : Ref{T}
+    return (isbitstype(T) || T === Any) ? T : Ref{T}
 end
 Base.@pure function map_argtype(T)
     if is_singleton(T)
         return Any
     end
-    return (isbits(T) || T === Any) ? T : Any
+    return (isbitstype(T) || T === Any) ? T : Any
 end
-Base.@pure get_cfunc_argtype(Obj, Args) =
-    Tuple{Ref{Obj}, (map_cfunc_argtype(Arg) for Arg in Args.parameters)...}
 
-# Call wrapper since `cfunction` does not support non-function
-# or closures
-if VERSION >= v"0.6.0"
-    # Can in princeple be lower but 0.6 doesn't warn on this so it doesn't matter
-    eval(parse("struct CallWrapper{Ret} <: Function end"))
-else
-    include_string("immutable CallWrapper{Ret} <: Function end")
+# callable that converts output of f to type Ret
+struct CallWrapper{Ret, F}
+    f::F
 end
-(::CallWrapper{Ret}){Ret}(f, args...)::Ret = f(args...)
 
-# Specialized wrapper for
+CallWrapper{Ret}(f::F) where {Ret, F} = CallWrapper{Ret, F}(f)
+
+(wrapper::CallWrapper{Ret})(args...) where {Ret} = convert(Ret, wrapper.f(args...))
+
 for nargs in 0:128
-    @eval (::CallWrapper{Ret}){Ret}(f, $((Symbol("arg", i) for i in 1:nargs)...))::Ret =
-        f($((Symbol("arg", i) for i in 1:nargs)...))
-end
-
-let ex = if VERSION >= v"0.6.0"
-    # Can in princeple be lower but 0.6 doesn't warn on this so it doesn't matter
-    parse("mutable struct FunctionWrapper{Ret,Args<:Tuple} end")
-else
-    parse("type FunctionWrapper{Ret,Args<:Tuple} end")
-end
-    ex.args[3] = quote
-        ptr::Ptr{Void}
-        objptr::Ptr{Void}
-        obj
-        objT
-        function (::Type{FunctionWrapper{Ret,Args}}){Ret,Args,objT}(obj::objT)
-            objref = Base.cconvert(Ref{objT}, obj)
-            new{Ret,Args}(cfunction(CallWrapper{Ret}(), map_rettype(Ret),
-                                    get_cfunc_argtype(objT, Args)),
-                          Base.unsafe_convert(Ref{objT}, objref), objref, objT)
-        end
-        (::Type{FunctionWrapper{Ret,Args}}){Ret,Args}(obj::FunctionWrapper{Ret,Args}) = obj
+    @eval function (wrapper::CallWrapper{Ret})($((Symbol("arg", i) for i in 1:nargs)...)) where Ret
+        convert(Ret, wrapper.f($((Symbol("arg", i) for i in 1:nargs)...)))
     end
-    eval(ex)
 end
 
-Base.convert{T<:FunctionWrapper}(::Type{T}, obj) = T(obj)
-Base.convert{T<:FunctionWrapper}(::Type{T}, obj::T) = obj
+@generated function make_cfunction(obj::objT, ::Type{Ret}, ::Type{Args}) where {objT,Ret,Args}
+    quote
+        wrapped = CallWrapper{Ret}(obj)
+        @cfunction(
+            $(Expr(:$, :wrapped)), # use $ to create runtime closure over obj
+            map_rettype(Ret),
+            ($([:(map_cfunc_argtype($Arg)) for Arg in Args.parameters]...), ))
+    end
+end
 
-@noinline function reinit_wrapper{Ret,Args}(f::FunctionWrapper{Ret,Args})
-    objref = f.obj
+mutable struct FunctionWrapper{Ret,Args<:Tuple}
+    ptr::Ptr{Cvoid}
+    objptr::Ptr{Cvoid}
+    cfun
+    obj
+    objT
+    function FunctionWrapper{Ret,Args}(obj::objT) where {Ret,Args,objT}
+        cfun = make_cfunction(obj, Ret, Args)
+        ptr = Base.unsafe_convert(Ptr{Cvoid}, Base.cconvert(Ptr{Cvoid}, cfun))
+        objptr = Base.unsafe_convert(Ref{objT}, Base.cconvert(Ref{objT}, obj))
+        new{Ret,Args}(ptr, objptr, cfun, obj, objT)
+    end
+
+    FunctionWrapper{Ret,Args}(obj::FunctionWrapper{Ret,Args}) where {Ret,Args} = obj
+end
+
+Base.convert(::Type{T}, obj) where {T<:FunctionWrapper} = T(obj)
+Base.convert(::Type{T}, obj::T) where {T<:FunctionWrapper} = obj
+
+@noinline function reinit_wrapper(f::FunctionWrapper{Ret,Args}) where {Ret,Args}
+    obj = f.obj
     objT = f.objT
-    ptr = cfunction(CallWrapper{Ret}(), map_rettype(Ret),
-                    get_cfunc_argtype(objT, Args))
+    cfun = make_cfunction(obj, Ret, Args)
+    ptr = Base.unsafe_convert(Ptr{Cvoid}, Base.cconvert(Ptr{Cvoid}, cfun))
     f.ptr = ptr
-    f.objptr = Base.unsafe_convert(Ref{objT}, objref)
-    return ptr
+    f.objptr = Base.unsafe_convert(Ref{objT}, Base.cconvert(Ref{objT}, obj))
+    f.cfun = cfun
+    return ptr::Ptr{Cvoid}
 end
 
-@generated function do_ccall{Ret,Args}(f::FunctionWrapper{Ret,Args}, args::Args)
+@generated function do_ccall(f::FunctionWrapper{Ret,Args}, args::Args) where {Ret,Args}
     # Has to be generated since the arguments type of `ccall` does not allow
     # anything other than tuple (i.e. `@pure` function doesn't work).
     quote
-        $(Expr(:meta, :inline))
+        Base.@_inline_meta
         ptr = f.ptr
         if ptr == C_NULL
             # For precompile support
@@ -102,8 +100,8 @@ end
         assume(ptr != C_NULL)
         objptr = f.objptr
         ccall(ptr, $(map_rettype(Ret)),
-              (Ptr{Void}, $((map_argtype(Arg) for Arg in Args.parameters)...)),
-              objptr, $((:(args[$i]) for i in 1:length(Args.parameters))...))
+              ($((map_argtype(Arg) for Arg in Args.parameters)...),),
+              $((:(args[$i]) for i in 1:length(Args.parameters))...))
     end
 end
 
