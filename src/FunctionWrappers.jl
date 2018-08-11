@@ -79,7 +79,7 @@ Base.convert(::Type{T}, obj::T) where {T<:FunctionWrapper} = obj
 @noinline function reinit_wrapper(f::FunctionWrapper{Ret,Args}) where {Ret,Args}
     objref = f.obj
     objT = f.objT
-    ptr = gen_fptr(Ret, Args, objT)
+    ptr = gen_fptr(Ret, Args, objT)::Ptr{Cvoid}
     f.ptr = ptr
     f.objptr = Base.unsafe_convert(Ref{objT}, objref)
     return ptr
