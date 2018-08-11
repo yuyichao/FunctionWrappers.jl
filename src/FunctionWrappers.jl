@@ -84,7 +84,7 @@ Base.convert(::Type{T}, obj::T) where {T<:FunctionWrapper} = obj
     f.ptr = ptr
     f.objptr = Base.unsafe_convert(Ref{objT}, Base.cconvert(Ref{objT}, obj))
     f.cfun = cfun
-    return ptr
+    return ptr::Ptr{Cvoid}
 end
 
 @generated function do_ccall(f::FunctionWrapper{Ret,Args}, args::Args) where {Ret,Args}
