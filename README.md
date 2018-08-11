@@ -21,5 +21,5 @@ Proof of principle implementation of [JuliaLang/julia#13984](https://github.com/
 ## Compared to `@cfunction`
 
 This does not require LLVM trampoline support, which is not currently supported by LLVM
-on all the architectures julia runs on (JuliaLang/julia#27174).
+on all the architectures julia runs on ([JuliaLang/julia#27174](https://github.com/JuliaLang/julia/issues/27174)).
 Other than this issue `@cfunction` should cover all of the use cases.
