@@ -31,25 +31,43 @@ Base.@pure function map_argtype(T)
     end
     return (isbitstype(T) || T === Any) ? T : Any
 end
-Base.@pure get_cfunc_argtype(Obj, Args) =
-    Tuple{Ref{Obj}, (map_cfunc_argtype(Arg) for Arg in Args.parameters)...}
+
+# callable that converts output of f to type Ret
+struct CallWrapper{Ret, F}
+    f::F
+end
+
+CallWrapper{Ret}(f::F) where {Ret, F} = CallWrapper{Ret, F}(f)
+
+(wrapper::CallWrapper{Ret})(args...) where {Ret} = convert(Ret, wrapper.f(args...))
+
+for nargs in 0:128
+    @eval function (wrapper::CallWrapper{Ret})($((Symbol("arg", i) for i in 1:nargs)...)) where Ret
+        convert(Ret, wrapper.f($((Symbol("arg", i) for i in 1:nargs)...)))
+    end
+end
 
 @generated function make_cfunction(obj::objT, ::Type{Ret}, ::Type{Args}) where {objT,Ret,Args}
-    :(@cfunction(
-        $(Expr(:$, obj)),
-        map_rettype(Ret),
-        (Ref{objT}, $([:(map_cfunc_argtype($Arg)) for Arg in Args.parameters]...))))
+    quote
+        wrapped = CallWrapper{Ret}(obj)
+        @cfunction(
+            $(Expr(:$, :wrapped)), # use $ to create runtime closure over obj
+            map_rettype(Ret),
+            ($([:(map_cfunc_argtype($Arg)) for Arg in Args.parameters]...), ))
+    end
 end
 
 mutable struct FunctionWrapper{Ret,Args<:Tuple}
     ptr::Ptr{Cvoid}
     objptr::Ptr{Cvoid}
+    cfun
     obj
     objT
     function FunctionWrapper{Ret,Args}(obj::objT) where {Ret,Args,objT}
-        objref = Base.cconvert(Ref{objT}, obj)
-        ptr = make_cfunction(obj, Ret, Args)
-        new{Ret,Args}(ptr, Base.unsafe_convert(Ref{objT}, objref), objref, objT)
+        cfun = make_cfunction(obj, Ret, Args)
+        ptr = Base.unsafe_convert(Ptr{Cvoid}, Base.cconvert(Ptr{Cvoid}, cfun))
+        objptr = Base.unsafe_convert(Ref{objT}, Base.cconvert(Ref{objT}, obj))
+        new{Ret,Args}(ptr, objptr, cfun, obj, objT)
     end
 
     FunctionWrapper{Ret,Args}(obj::FunctionWrapper{Ret,Args}) where {Ret,Args} = obj
@@ -59,11 +77,13 @@ Base.convert(::Type{T}, obj) where {T<:FunctionWrapper} = T(obj)
 Base.convert(::Type{T}, obj::T) where {T<:FunctionWrapper} = obj
 
 @noinline function reinit_wrapper(f::FunctionWrapper{Ret,Args}) where {Ret,Args}
-    objref = f.obj
+    obj = f.obj
     objT = f.objT
-    ptr = make_cfunction(obj, Ret, Args)
+    cfun = make_cfunction(obj, Ret, Args)
+    ptr = Base.unsafe_convert(Ptr{Cvoid}, Base.cconvert(Ptr{Cvoid}, cfun))
     f.ptr = ptr
-    f.objptr = Base.unsafe_convert(Ref{objT}, objref)
+    f.objptr = Base.unsafe_convert(Ref{objT}, Base.cconvert(Ref{objT}, obj))
+    f.cfun = cfun
     return ptr
 end
 
@@ -80,8 +100,8 @@ end
         assume(ptr != C_NULL)
         objptr = f.objptr
         ccall(ptr, $(map_rettype(Ret)),
-              (Ptr{Cvoid}, $((map_argtype(Arg) for Arg in Args.parameters)...)),
-              objptr, $((:(args[$i]) for i in 1:length(Args.parameters))...))
+              ($((map_argtype(Arg) for Arg in Args.parameters)...),),
+              $((:(args[$i]) for i in 1:length(Args.parameters))...))
     end
 end
 
