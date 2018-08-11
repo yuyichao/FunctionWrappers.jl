@@ -2,13 +2,11 @@
 
 import FunctionWrappers
 import FunctionWrappers: FunctionWrapper
-using Base.Test
+using Compat
+using Compat.Test
 
-if VERSION >= v"0.6.0"
-    # Can in princeple be lower but 0.6 doesn't warn on this so it doesn't matter
-    eval(parse("struct CallbackF64 f::FunctionWrapper{Float64,Tuple{Int}} end"))
-else
-    eval(parse("immutable CallbackF64 f::FunctionWrapper{Float64,Tuple{Int}} end"))
+struct CallbackF64
+    f::FunctionWrapper{Float64,Tuple{Int}}
 end
 (cb::CallbackF64)(v) = cb.f(v)
 gen_closure(x) = y->x + y
@@ -57,9 +55,9 @@ end
 end
 
 @testset "Void" begin
-    identityVoidVoid = FunctionWrapper{Void,Tuple{Void}}(identity)
+    identityVoidVoid = FunctionWrapper{Cvoid,Tuple{Cvoid}}(identity)
     @test identityVoidVoid(nothing) === nothing
     f1 = (a, b)->b
-    fIntVoidInt = FunctionWrapper{Int,Tuple{Void,Int}}(f1)
+    fIntVoidInt = FunctionWrapper{Int,Tuple{Cvoid,Int}}(f1)
     @test fIntVoidInt(nothing, 1) === 1
 end

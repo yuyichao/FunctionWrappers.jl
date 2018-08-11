@@ -17,3 +17,9 @@ Proof of principle implementation of [JuliaLang/julia#13984](https://github.com/
 3. Wrapper Object cannot be serialized by `dump.c` and therefore the
    precompilation of `FunctionWrappers` is done using a runtime branch
    and by making the wrapper type mutable.
+
+## Compared to `@cfunction`
+
+This does not require LLVM trampoline support, which is not currently supported by LLVM
+on all the architectures julia runs on (JuliaLang/julia#27174).
+Other than this issue `@cfunction` should cover all of the use cases.
