@@ -96,7 +96,7 @@ Base.convert(::Type{T}, obj::T) where {T<:FunctionWrapper} = obj
     return ptr
 end
 
-@generated function do_ccall(f::FunctionWrapper{Ret,Args}, args::Args) where {Ret,Args}
+@generated function do_ccall(f::FunctionWrapper{Ret,Args}, args) where {Ret,Args}
     # Has to be generated since the arguments type of `ccall` does not allow
     # anything other than tuple (i.e. `@pure` function doesn't work).
     quote
@@ -110,7 +110,8 @@ end
         objptr = f.objptr
         ccall(ptr, $(map_rettype(Ret)),
               (Ptr{Cvoid}, $((map_argtype(Arg) for Arg in Args.parameters)...)),
-              objptr, $((:(args[$i]) for i in 1:length(Args.parameters))...))
+              objptr, $((:(convert($(Args.parameters[i]), args[$i]))
+                         for i in 1:length(Args.parameters))...))
     end
 end
 

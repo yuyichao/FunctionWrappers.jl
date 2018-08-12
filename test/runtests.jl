@@ -72,3 +72,13 @@ end
     identitySInt = FunctionWrapper{SingletonType,Tuple{Int}}(identity)
     @test_throws MethodError identitySInt(1)
 end
+
+@testset "Convert" begin
+    identityIntF64 = FunctionWrapper{Int,Tuple{Float64}}(identity)
+    @test identityIntF64(1.0) === 1
+    @test identityIntF64(1) === 1
+
+    identityF64Int = FunctionWrapper{Float64,Tuple{Int}}(identity)
+    @test identityF64Int(1) === 1.0
+    @test identityF64Int(1.0) === 1.0
+end
