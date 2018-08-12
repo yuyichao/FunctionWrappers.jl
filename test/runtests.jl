@@ -54,10 +54,21 @@ end
     @test FunctionWrappers.identityAnyAny(1) === 1
 end
 
+struct SingletonType
+end
+
 @testset "Void" begin
     identityVoidVoid = FunctionWrapper{Cvoid,Tuple{Cvoid}}(identity)
     @test identityVoidVoid(nothing) === nothing
     f1 = (a, b)->b
     fIntVoidInt = FunctionWrapper{Int,Tuple{Cvoid,Int}}(f1)
     @test fIntVoidInt(nothing, 1) === 1
+
+    # Void return type ignores actual value
+    identityVoidInt = FunctionWrapper{Cvoid,Tuple{Int}}(identity)
+    @test identityVoidInt(1) === nothing
+
+    # Void return type ignores actual value
+    identitySInt = FunctionWrapper{SingletonType,Tuple{Int}}(identity)
+    @test_throws MethodError identitySInt(1)
 end

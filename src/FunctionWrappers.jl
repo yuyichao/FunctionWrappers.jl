@@ -16,17 +16,28 @@ using Compat
                    """), Cvoid, Tuple{Bool}, v)
 end
 
-is_singleton(@nospecialize(T)) = isdefined(T, :instance)
+Base.@pure is_singleton(@nospecialize(T)) = isdefined(T, :instance)
+# Base.@pure get_instance(@nospecialize(T)) = Base.getfield(T, :instance)
+
+@inline function convert_ret(::Type{Ret}, ret) where Ret
+    # Only treat `Cvoid` as ignoring return value.
+    # Treating all singleton as ignoring return value is also possible as shown in the
+    # commented out implementation but it doesn't seem necessary.
+    # The stricter rule may help catching errors and can be more easily changed later.
+    Ret === Cvoid && return
+    # is_singleton(Ret) && return get_instance(Ret)
+    return convert(Ret, ret)
+end
 
 # Call wrapper since `cfunction` does not support non-function
 # or closures
 struct CallWrapper{Ret} <: Function end
-((::CallWrapper{Ret})(f, args...)::Ret) where Ret = f(args...)
+(::CallWrapper{Ret})(f, args...) where Ret = convert_ret(Ret, f(args...))
 
 # Specialized wrapper for
 for nargs in 0:128
-    @eval ((::CallWrapper{Ret})(f, $((Symbol("arg", i) for i in 1:nargs)...))::Ret) where {Ret} =
-        f($((Symbol("arg", i) for i in 1:nargs)...))
+    @eval (::CallWrapper{Ret})(f, $((Symbol("arg", i) for i in 1:nargs)...)) where {Ret} =
+        convert_ret(Ret, f($((Symbol("arg", i) for i in 1:nargs)...)))
 end
 
 # Convert return type and generates cfunction signatures
