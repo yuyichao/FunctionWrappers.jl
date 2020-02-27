@@ -2,8 +2,7 @@
 
 import FunctionWrappers
 import FunctionWrappers: FunctionWrapper
-using Compat
-using Compat.Test
+using Test
 
 struct CallbackF64
     f::FunctionWrapper{Float64,Tuple{Int}}

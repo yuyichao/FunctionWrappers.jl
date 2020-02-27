@@ -4,8 +4,6 @@ __precompile__(true)
 
 module FunctionWrappers
 
-using Compat
-
 # Used to bypass NULL check
 @inline function assume(v::Bool)
     Base.llvmcall(("declare void @llvm.assume(i1)",
