@@ -5,13 +5,28 @@ __precompile__(true)
 module FunctionWrappers
 
 # Used to bypass NULL check
-@inline function assume(v::Bool)
-    Base.llvmcall(("declare void @llvm.assume(i1)",
-                   """
-                   %v = trunc i8 %0 to i1
-                   call void @llvm.assume(i1 %v)
-                   ret void
-                   """), Cvoid, Tuple{Bool}, v)
+if VERSION >= v"1.6.0-DEV.663"
+    @inline function assume(v::Bool)
+        Base.llvmcall(
+            ("""
+             declare void @llvm.assume(i1)
+             define void @fw_assume(i8)
+             {
+                 %v = trunc i8 %0 to i1
+                 call void @llvm.assume(i1 %v)
+                 ret void
+             }
+             """, "fw_assume"), Cvoid, Tuple{Bool}, v)
+    end
+else
+    @inline function assume(v::Bool)
+        Base.llvmcall(("declare void @llvm.assume(i1)",
+                       """
+                       %v = trunc i8 %0 to i1
+                       call void @llvm.assume(i1 %v)
+                       ret void
+                       """), Cvoid, Tuple{Bool}, v)
+    end
 end
 
 Base.@pure is_singleton(@nospecialize(T)) = isdefined(T, :instance)
