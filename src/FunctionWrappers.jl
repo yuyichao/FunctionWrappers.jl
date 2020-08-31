@@ -55,18 +55,18 @@ end
 
 # Convert return type and generates cfunction signatures
 Base.@pure map_rettype(T) =
-    (isbitstype(T) || T === Any || is_singleton(T)) ? T : Ref{T}
+    (Base.allocatedinline(T) || T === Any || is_singleton(T)) ? T : Ref{T}
 Base.@pure function map_cfunc_argtype(T)
     if is_singleton(T)
         return Ref{T}
     end
-    return (isbitstype(T) || T === Any) ? T : Ref{T}
+    return (Base.allocatedinline(T) || T === Any) ? T : Ref{T}
 end
 Base.@pure function map_argtype(T)
     if is_singleton(T)
         return Any
     end
-    return (isbitstype(T) || T === Any) ? T : Any
+    return (Base.allocatedinline(T) || T === Any) ? T : Any
 end
 Base.@pure get_cfunc_argtype(Obj, Args) =
     Tuple{Ref{Obj}, (map_cfunc_argtype(Arg) for Arg in Args.parameters)...}
