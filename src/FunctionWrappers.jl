@@ -29,6 +29,12 @@ else
     end
 end
 
+if VERSION >= v"1.5.0"
+    Base.@pure pass_by_value(T) = Base.allocatedinline(T)
+else
+    Base.@pure pass_by_value(T) = isbitstype(T)
+end
+
 Base.@pure is_singleton(@nospecialize(T)) = isdefined(T, :instance)
 # Base.@pure get_instance(@nospecialize(T)) = Base.getfield(T, :instance)
 
@@ -55,18 +61,18 @@ end
 
 # Convert return type and generates cfunction signatures
 Base.@pure map_rettype(T) =
-    (isbitstype(T) || T === Any || is_singleton(T)) ? T : Ref{T}
+    (pass_by_value(T) || T === Any || is_singleton(T)) ? T : Ref{T}
 Base.@pure function map_cfunc_argtype(T)
     if is_singleton(T)
         return Ref{T}
     end
-    return (isbitstype(T) || T === Any) ? T : Ref{T}
+    return (pass_by_value(T) || T === Any) ? T : Ref{T}
 end
 Base.@pure function map_argtype(T)
     if is_singleton(T)
         return Any
     end
-    return (isbitstype(T) || T === Any) ? T : Any
+    return (pass_by_value(T) || T === Any) ? T : Any
 end
 Base.@pure get_cfunc_argtype(Obj, Args) =
     Tuple{Ref{Obj}, (map_cfunc_argtype(Arg) for Arg in Args.parameters)...}
