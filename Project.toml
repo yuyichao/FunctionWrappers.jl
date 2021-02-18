@@ -1,6 +1,6 @@
 name = "FunctionWrappers"
 uuid = "069b7b12-0de2-55c6-9aab-29f3d0a68a2e"
-version = "1.1.1"
+version = "1.1.2"
 
 [compat]
 julia = "1"
