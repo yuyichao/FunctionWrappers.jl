@@ -81,3 +81,13 @@ end
     @test identityF64Int(1) === 1.0
     @test identityF64Int(1.0) === 1.0
 end
+
+struct InlineRefStruct
+    x::Vector{Int}
+end
+
+@testset "Inline struct with Ref" begin
+    f = @inferred FunctionWrapper{InlineRefStruct,Tuple{InlineRefStruct}}(identity)
+    v = InlineRefStruct([1, 2, 3])
+    @test @inferred(f(v)) === v
+end

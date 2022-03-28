@@ -35,6 +35,13 @@ else
     Base.@pure pass_by_value(T) = isbitstype(T)
 end
 
+if VERSION >= v"1.8.0-DEV.1460"
+    # Restriction from https://github.com/JuliaLang/julia/pull/43953
+    Base.@pure pass_by_value_ret(T) = isbitstype(T)
+else
+    Base.@pure pass_by_value_ret(T) = pass_by_value(T)
+end
+
 Base.@pure is_singleton(@nospecialize(T)) = isdefined(T, :instance)
 # Base.@pure get_instance(@nospecialize(T)) = Base.getfield(T, :instance)
 
@@ -61,7 +68,7 @@ end
 
 # Convert return type and generates cfunction signatures
 Base.@pure map_rettype(T) =
-    (pass_by_value(T) || T === Any || is_singleton(T)) ? T : Ref{T}
+    (pass_by_value_ret(T) || T === Any || is_singleton(T)) ? T : Ref{T}
 Base.@pure function map_cfunc_argtype(T)
     if is_singleton(T)
         return Ref{T}
