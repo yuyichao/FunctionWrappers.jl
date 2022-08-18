@@ -24,3 +24,24 @@ Proof of principle implementation of [JuliaLang/julia#13984](https://github.com/
 This does not require LLVM trampoline support, which is not currently supported by LLVM
 on all the architectures julia runs on ([JuliaLang/julia#27174](https://github.com/JuliaLang/julia/issues/27174)).
 Other than this issue `@cfunction` should cover all of the use cases.
+
+## Simple Usage Example
+
+```julia
+using FunctionWrappers
+import FunctionWrappers: FunctionWrapper
+
+# For a function that sends (x1::T1, x2::T2, ...) -> ::TN, you use
+# a FunctionWrapper{TN, Tuple{T1, T2, ...}}.
+struct TypeStableStruct 
+  fun::FunctionWrapper{Float64, Tuple{Float64, Float64}}
+  second_arg::Float64
+end
+
+evaluate_strfun(str, arg) = str.fun(arg, str.second_arg)
+
+example = TypeStableStruct(hypot, 1.0)
+
+@code_warntype evaluate_strfun(example, 1.5) # all good
+```
+
