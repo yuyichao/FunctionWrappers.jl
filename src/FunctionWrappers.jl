@@ -4,31 +4,6 @@ __precompile__(true)
 
 module FunctionWrappers
 
-# Used to bypass NULL check
-if VERSION >= v"1.6.0-DEV.663"
-    @inline function assume(v::Bool)
-        Base.llvmcall(
-            ("""
-             declare void @llvm.assume(i1)
-             define void @fw_assume(i8)
-             {
-                 %v = trunc i8 %0 to i1
-                 call void @llvm.assume(i1 %v)
-                 ret void
-             }
-             """, "fw_assume"), Cvoid, Tuple{Bool}, v)
-    end
-else
-    @inline function assume(v::Bool)
-        Base.llvmcall(("declare void @llvm.assume(i1)",
-                       """
-                       %v = trunc i8 %0 to i1
-                       call void @llvm.assume(i1 %v)
-                       ret void
-                       """), Cvoid, Tuple{Bool}, v)
-    end
-end
-
 if VERSION >= v"1.5.0"
     Base.@pure pass_by_value(T) = Base.allocatedinline(T)
 else
@@ -131,8 +106,8 @@ end
         if ptr == C_NULL
             # For precompile support
             ptr = reinit_wrapper(f)
+            @assert ptr != C_NULL
         end
-        assume(ptr != C_NULL)
         objptr = f.objptr
         ccall(ptr, $(map_rettype(Ret)),
               (Ptr{Cvoid}, $((map_argtype(Arg) for Arg in Args.parameters)...)),
